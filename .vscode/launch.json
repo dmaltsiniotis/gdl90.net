@@ -10,11 +10,11 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}GDL90_ConsoleApp/bin/Debug/net7.0/gdl90.dll",
+            "program": "${workspaceFolder}/gdl90_console/bin/Debug/net8.0/gdl90_console.dll",
             "args": [],
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/gdl90_console",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
-            "console": "internalConsole",
+            "console": "integratedTerminal", // Changed from "internalConsole" becuase the demo application will wait for user input (press any key) to end the program.
             "stopAtEntry": false
         },
         {

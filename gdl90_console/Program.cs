@@ -51,7 +51,6 @@ namespace GDL90 {
         private int MessageCount = 0;
         private int MessageCountBadCRC = 0;
         private int StreamCorruptionCount = 0;
-        private bool Running = true;
 
         public Processor(ProgramOptions options) {
             this.options = options;
