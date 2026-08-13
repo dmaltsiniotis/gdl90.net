@@ -37,7 +37,8 @@ namespace GDL90 {
             MessageData = messageDataWithIdAndFcs[1..^2].ToArray(); // Fancy way of doing .Slice(1)
             //MessageData = UnescapeMessage(messageDataWithIdAndFcs.ToArray())[1..^2].ToArray(); // Fancy way of doing .Slice(1)
         }
-        public abstract void PrintDebugInfo();
+        public abstract string ToDetailedString();
+        public abstract string ToShortString();
         public static ushort ComputeCRC(Span<byte> messageBytes)
         {
             ushort crc = 0;
@@ -135,8 +136,7 @@ namespace GDL90 {
         GDL90_BasicReport = 0x1E,
         GDL90_LongReport = 0x1F,
         Stratux_Heartbeat = 0xCC,
-        Stratux_Heartbeat_Old = 0x53,
-        // Stratux_Heartbeat_Old_Upper = 0x58,
+        Stratux_Heartbeat_Old = 0x53, //+0x58 'S','X',
         Stratux_AHRS = 0x4C,
         Foreflight_Status = 0x65
     }
@@ -148,7 +148,7 @@ namespace GDL90 {
         }
 
         public static string GetMessageNameFromId(MessageType id) {
-            string MessageName = "";
+            string MessageName = "<Unknown>";
             switch (id)
             {
                 case MessageType.GDL90_Heartbeat:
@@ -177,9 +177,6 @@ namespace GDL90 {
                     break;
                 case MessageType.Stratux_Heartbeat_Old:
                     MessageName = "Stratux - Heartbeat";
-                    // if (RawBytes[1] == 0x58) { // Make some bad assumptions here for simplicity.
-                    //     MessageName = "Stratux - Heartbeat";
-                    // }
                     break;
                 case MessageType.Foreflight_Status:
                     MessageName = "Foreflight - Status";
@@ -199,21 +196,50 @@ namespace GDL90 {
 
             switch (MessageType)
             {
-                case MessageType.GDL90_TrafficReport:
-                    GDL90Message = new TrafficReport(messageDataWithIdAndFcsAndFlagBytes);
-                    break;
                 case GDL90.MessageType.GDL90_Heartbeat:
                     GDL90Message = new Heartbeat(messageDataWithIdAndFcsAndFlagBytes);
                     break;
-                case GDL90.MessageType.GDL90_UplinkData:
+                case GDL90.MessageType.GDL90_TrafficReport:
+                    GDL90Message = new TrafficReport(messageDataWithIdAndFcsAndFlagBytes);
+                    break;
                 case GDL90.MessageType.GDL90_OwnshipReport:
+                    GDL90Message = new OwnshipReport(messageDataWithIdAndFcsAndFlagBytes);
+                    break;
                 case GDL90.MessageType.GDL90_OwnshipGeometricAltitude:
+                    GDL90Message = new OwnshipGeometricAltitude(messageDataWithIdAndFcsAndFlagBytes);
+                    break;
+                case GDL90.MessageType.GDL90_UplinkData:
+                    GDL90Message = new UplinkData(messageDataWithIdAndFcsAndFlagBytes);
+                    break;
                 case GDL90.MessageType.GDL90_BasicReport:
+                    GDL90Message = new BasicReport(messageDataWithIdAndFcsAndFlagBytes);
+                    break;
                 case GDL90.MessageType.GDL90_LongReport:
-                case GDL90.MessageType.Stratux_Heartbeat:
-                case GDL90.MessageType.Stratux_Heartbeat_Old:
+                    GDL90Message = new LongReport(messageDataWithIdAndFcsAndFlagBytes);
+                    break;
                 case GDL90.MessageType.Stratux_AHRS:
+                    GDL90Message = new StratuxAHRS(messageDataWithIdAndFcsAndFlagBytes);
+                    break;
+                case GDL90.MessageType.Stratux_Heartbeat:
+                    GDL90Message = new StratuxHeartbeat(messageDataWithIdAndFcsAndFlagBytes);
+                    break;
+                case GDL90.MessageType.Stratux_Heartbeat_Old:
+                    GDL90Message = new StratuxHeartbeatOld(messageDataWithIdAndFcsAndFlagBytes);
+                    break;
                 case GDL90.MessageType.Foreflight_Status:
+                    // This is a special case, foreflight status message are further subdivided by the next byte in the message, which is the "Message Identifier" field.
+                    switch (messageDataWithIdAndFcsAndFlagBytes[2]) { // Message Identifier
+                        case 0x00: // Foreflight Status
+                            GDL90Message = new ForeflightStatus(messageDataWithIdAndFcsAndFlagBytes);
+                            break;
+                        case 0x01: // Foreflight AHRS
+                            GDL90Message = new ForeflightAHRS(messageDataWithIdAndFcsAndFlagBytes);
+                            break;
+                        default:
+                            GDL90Message = new NotImplementedMessage(messageDataWithIdAndFcsAndFlagBytes);
+                            break;
+                    }
+                    break;
                 default:
                     GDL90Message = new NotImplementedMessage(messageDataWithIdAndFcsAndFlagBytes);
                     break;
@@ -223,4 +249,11 @@ namespace GDL90 {
         }
     }
 
+    public class MessageStreamParser
+    {
+        public MessageStreamParser()
+        {
+
+        }
+    }
 }

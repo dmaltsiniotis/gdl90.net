@@ -10,7 +10,7 @@
             "request": "launch",
             "preLaunchTask": "build",
             // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/gdl90_console/bin/Debug/net8.0/gdl90_console.dll",
+            "program": "${workspaceFolder}/gdl90_console/bin/Debug/net10.0/gdl90_console.dll",
             "args": [],
             "cwd": "${workspaceFolder}/gdl90_console",
             // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console

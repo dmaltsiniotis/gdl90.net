@@ -76,22 +76,18 @@ namespace GDL90 {
             Message newGDL90Message = MessageFactory.CreateMessageFromBytes(messageDataWithIdAndFcsAndFlagBytes);
             //Console.WriteLine("{3} {0:0000000} MessageId received: 0x{1:X2} {2}", MessageCount, (int)newGDL90Message.MessageId, newGDL90Message.MessageName, DateTimeOffset.Now.ToUnixTimeMilliseconds());
             if (newGDL90Message.ValidCRC) {
-                if (newGDL90Message.MessageId == MessageType.GDL90_TrafficReport)
+                /****** What do we want to do with the messages? ******/
+                //Console.WriteLine("{0} {1:0000000} {2}", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount, newGDL90Message.ToShortString());
+
+                if (newGDL90Message.GetType() == typeof(NotImplementedMessage)) 
                 {
-                    TrafficReport newGDL90TrafficMessage = (TrafficReport)newGDL90Message;
-                    Console.WriteLine("{0} {1:0000000} TF: {2:8} ({3}, {4}) {5} ft {6} kts {7} deg", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount, newGDL90TrafficMessage.Callsign, newGDL90TrafficMessage.Latitude, newGDL90TrafficMessage.Longitude, newGDL90TrafficMessage.Altitude, newGDL90TrafficMessage.HorizontalVelocity, newGDL90TrafficMessage.Heading);
+                    Console.WriteLine("{0} {1:0000000} {2}", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount, newGDL90Message.ToShortString());
                 }
 
-                if (newGDL90Message.MessageId == MessageType.GDL90_Heartbeat)
-                {
-                    Heartbeat newGDL90Heartbeat = (Heartbeat)newGDL90Message;
-                    Console.WriteLine("{0} {1:0000000} HB: ", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount);
-                    //newGDL90Heartbeat.PrintDebugInfo();
-                }
             }
             else
             {
-                //Console.WriteLine("WARNING: TrafficReport CRC failure. Computed: 0x{0:X}, actual: 0x{1:X}.", newGDL90Message.ComputedCRC, newGDL90Message.MessageCRC);
+                Console.WriteLine("WARNING: CRC failure. Computed: 0x{0:X}, actual: 0x{1:X}.", newGDL90Message.ComputedCRC, newGDL90Message.MessageCRC);
                 MessageCountBadCRC++;
             }
         }

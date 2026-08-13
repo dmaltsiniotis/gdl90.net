@@ -32,7 +32,12 @@ namespace GDL90 {
             // }
         }
 
-        public override void PrintDebugInfo()
+        public override string ToShortString()
+        {
+            return string.Format("Traffic: {0:8} ({1}, {2}) {3} ft {4} kts {5} deg", Callsign, Latitude, Longitude, Altitude, HorizontalVelocity, Heading);
+        }
+
+        public override string ToDetailedString()
         {
             System.Text.StringBuilder debugBuilder = new System.Text.StringBuilder();
             debugBuilder.AppendLine(string.Format("                  MessageId: 0x{0:D2} ({1})", (int)MessageId, MessageId));
@@ -54,7 +59,7 @@ namespace GDL90 {
             debugBuilder.AppendLine(string.Format("            EmitterCategory: {0} ({1})", (int)EmitterCategory, EmitterCategory));
             debugBuilder.AppendLine(string.Format("                   Callsign: {0}", Callsign));
             debugBuilder.AppendLine(string.Format("               PriorityCode: {0} ({1})", (int)PriorityCode, PriorityCode));
-            Console.WriteLine(debugBuilder);
+            return debugBuilder.ToString();
         }
 
         private void ParseFromBytes()
