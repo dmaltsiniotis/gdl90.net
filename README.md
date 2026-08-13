@@ -1,10 +1,10 @@
 # GDL90.NET - a .NET GDL90 Implementation
 
-This repository contains .NET 8.0 code for an implementation of the GDL90 specification/protocol. There are three folders that comprise this project: `gdl90_lib`, `gdl90_tests`, `gdl90_console`.
+This repository contains .NET 10.0 code for an implementation of the GDL90 specification/protocol. There are three folders that comprise this project: `gdl90_lib`, `gdl90_tests`, `gdl90_console`.
 
 ## Project descriptions
 
-This project is structured such that you may use Visual Studio 2022 or Visual Studio Code, to build, run, and debug the project. The only hard requirement is .NET 8.0.
+This project is structured such that you may use Visual Studio 2026 or Visual Studio Code, to build, run, and debug the project. The only hard requirement is .NET 10.0 (although the project is known to work with .NET 8.0 and lower).
 
 ### gdl90_lib
 

@@ -1,15 +1,24 @@
 # .NET GDL90 Library
 
-This repository contains .NET 7.0 code for an implementation of the GDL90 specification/protocol. This library currently supports the following message types:
+This repository contains .NET 10.0 code for an implementation of the GDL90 specification/protocol. This library currently supports the following message types:
 
 **Completed:**
 
 * Traffic Report
+* Heartbeat
 
-**In Progress**:
+**Completed But Needs Testing:**
 
-* Heartbeat (30% implemented)
+* Stratux Heartbeat
+* Stratux Heartbeat Older
+* Ownship Report
+* Ownship Geometric Altitude
+* Stratux AHRS
+* Foreflight AHRS
+* Foreflight Status
 
-**Planned:**
+**In Progress:**
 
-* AHRS
+* Uplink Data
+* Basic Report
+* Long Report

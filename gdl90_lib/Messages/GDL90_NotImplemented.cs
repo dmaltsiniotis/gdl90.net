@@ -1,17 +1,24 @@
 using System;
 
 namespace GDL90 {
-    internal class NotImplementedMessage : Message
+    public class NotImplementedMessage : Message
     {
         public NotImplementedMessage(Span<byte> messageDataWithIdAndFcsAndFlagBytes) : base(messageDataWithIdAndFcsAndFlagBytes)
         {
+            
+        }
+        public override string ToShortString()
+        {
+            return string.Format("GDL90 Message type 0x{0:X2} ({1}) is not yet implemented.", (int)MessageId, MessageName);
         }
 
-        public override void PrintDebugInfo()
+        public override string ToDetailedString()
         {
             string debugInfo = string.Format("GDL90 Message type 0x{0:X2} ({1}) is not yet implemented.", (int)MessageId, MessageName);
-            Console.WriteLine(debugInfo);
+            return debugInfo;
         }
+
+
     }
 
 }

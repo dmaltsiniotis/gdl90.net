@@ -1,3 +1,5 @@
 .vs
+.venv
 bin
 obj
+tmp
