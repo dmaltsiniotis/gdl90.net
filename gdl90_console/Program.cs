@@ -1,15 +1,10 @@
 ﻿using System;
-using System.Buffers;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading;
-using System.Xml;
-using Microsoft.Win32.SafeHandles;
+
 
 namespace GDL90 {
     public class ProgramOptions {
@@ -18,19 +13,14 @@ namespace GDL90 {
             ReadFromFile,
             ExecuteTests
         }
-        public enum VerbosityEnum : int {
-            None = 0,
-            Default = 1,
-            Extra = 2,
-            Debug = 3
-        }
 
         public ProgramMode Mode = ProgramMode.ListenUDP;
         public string InFile = ""; // Input from a recorded file.
         public string OutFile = ""; // Output to a recorded file.
         public bool Force; // Make sure options that don't make sense together are intended.
+        public bool Stats; // Enable statistics output.
         public int UdpListenPort = 4000; // Default 4000 for Stratux GDL90
-        public VerbosityEnum Verbosity = VerbosityEnum.Default;
+        public Verbosity LogLevel = Verbosity.Info;
 
         public ProgramOptions() {
 
@@ -47,51 +37,76 @@ namespace GDL90 {
         private readonly ProgramOptions options;
         public int receivedBytesBeforeFlush = 0;
         public FileStream? binaryStratuxDataFile = null;
-        private readonly AsyncCallback ReceiveCallbackDelegate;
+        private readonly AsyncCallback ReceiveUDPDataCallbackDelegate;
+        private readonly AsyncCallback GDL90MessageReceivedCallbackDelegate;
+        private readonly AsyncCallback MessageRawBytesReceivedCallbackDelegate;
+        private readonly AsyncCallback StreamCorruptionCallbackDelegate;
         private int MessageCount = 0;
         private int MessageCountBadCRC = 0;
         private int StreamCorruptionCount = 0;
+        private Logger logger;
+        private MessageStreamParser NetworkMessageStreamParser;
+        private MessageStreamParser FileMessageStreamParser;
+        private MemoryStream NetworkMessageStream = new MemoryStream();
 
         public Processor(ProgramOptions options) {
             this.options = options;
+            this.logger = new Logger(options.LogLevel);
             if (!string.IsNullOrEmpty(options.OutFile)) {
                  binaryStratuxDataFile = new FileStream(options.OutFile, FileMode.OpenOrCreate | FileMode.Append, FileAccess.Write);
             }
-            ReceiveCallbackDelegate = new AsyncCallback(ReceiveCallback);
+            ReceiveUDPDataCallbackDelegate = new AsyncCallback(ReceiveUDPDataCallback);
+            GDL90MessageReceivedCallbackDelegate = new AsyncCallback(ProcessMessage);
+            MessageRawBytesReceivedCallbackDelegate = new AsyncCallback(ProcessMessageRawBytes);
+            StreamCorruptionCallbackDelegate = new AsyncCallback(ProcessStreamCorruption);
 
+            NetworkMessageStreamParser = new MessageStreamParser(GDL90MessageReceivedCallbackDelegate, StreamCorruptionCallbackDelegate, MessageRawBytesReceivedCallbackDelegate);
+            NetworkMessageStreamParser.Start(NetworkMessageStream);
+
+            FileMessageStreamParser = new MessageStreamParser(GDL90MessageReceivedCallbackDelegate, StreamCorruptionCallbackDelegate, MessageRawBytesReceivedCallbackDelegate);
         }
-        private void ProcessMessage(Span<byte> messageDataWithIdAndFcsAndFlagBytes) {
-            if (!string.IsNullOrEmpty(options.OutFile) && binaryStratuxDataFile != null && binaryStratuxDataFile.CanWrite) {
-                receivedBytesBeforeFlush += messageDataWithIdAndFcsAndFlagBytes.Length;
-                binaryStratuxDataFile.Write(messageDataWithIdAndFcsAndFlagBytes);
-                if (receivedBytesBeforeFlush >= 4096) {
-                    Console.WriteLine("Flushing save file contents...");
-                    binaryStratuxDataFile.Flush(true);
-                    receivedBytesBeforeFlush = 0;
-                }
+
+        private void ProcessStreamCorruption(IAsyncResult ar) {
+            logger.Warn(String.Format("{0} {1:0000000} Stream corruption detected. Discarding and re-framing.", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount));
+            StreamCorruptionCount++;
+        }
+        private void ProcessMessage(IAsyncResult ar) {
+            if (ar.AsyncState == null)
+            {
+                throw new ArgumentException("Missing Message. Expected a Message object.");
             }
 
+            // Congrats, we have a GDL90 message! Now what do we want to do with it?
+            Message newGDL90Message = (Message)ar.AsyncState;
+
             MessageCount++;
-            //Console.WriteLine("Processing: {0}", Convert.ToHexString(messageDataWithIdAndFcsAndFlagBytes));
-            Message newGDL90Message = MessageFactory.CreateMessageFromBytes(messageDataWithIdAndFcsAndFlagBytes);
-            //Console.WriteLine("{3} {0:0000000} MessageId received: 0x{1:X2} {2}", MessageCount, (int)newGDL90Message.MessageId, newGDL90Message.MessageName, DateTimeOffset.Now.ToUnixTimeMilliseconds());
+
             if (newGDL90Message.ValidCRC) {
-                /****** What do we want to do with the messages? ******/
-                //Console.WriteLine("{0} {1:0000000} {2}", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount, newGDL90Message.ToShortString());
-
-                if (newGDL90Message.GetType() == typeof(NotImplementedMessage)) 
-                {
-                    Console.WriteLine("{0} {1:0000000} {2}", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount, newGDL90Message.ToShortString());
-                }
-
+                //logger.Info(String.Format("{0} {1:0000000} {2}", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount, newGDL90Message.ToShortString()));
             }
             else
             {
-                Console.WriteLine("WARNING: CRC failure. Computed: 0x{0:X}, actual: 0x{1:X}.", newGDL90Message.ComputedCRC, newGDL90Message.MessageCRC);
+                logger.Warn(String.Format("{0} {1:0000000} CRC failure. Computed: 0x{2:X}, actual: 0x{3:X}.", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount, newGDL90Message.ComputedCRC, newGDL90Message.MessageCRC));
                 MessageCountBadCRC++;
             }
         }
-        public void ReceiveCallback(IAsyncResult ar) {
+        private void ProcessMessageRawBytes(IAsyncResult ar) {
+            if (ar.AsyncState != null)
+            {
+                byte[] messageDataWithIdAndFcsAndFlagBytes = (byte[])ar.AsyncState;
+                
+                if (!string.IsNullOrEmpty(options.OutFile) && binaryStratuxDataFile != null && binaryStratuxDataFile.CanWrite) {
+                    receivedBytesBeforeFlush += messageDataWithIdAndFcsAndFlagBytes.Length;
+                    binaryStratuxDataFile.Write(messageDataWithIdAndFcsAndFlagBytes);
+                    if (receivedBytesBeforeFlush >= 1024) {
+                        Console.WriteLine("Flushing save file contents...");
+                        binaryStratuxDataFile.Flush(true);
+                        receivedBytesBeforeFlush = 0;
+                    }
+                }
+            }
+        }
+        public void ReceiveUDPDataCallback(IAsyncResult ar) {
             if (ar.AsyncState == null)
             {
                 throw new ArgumentException("Missing asyncState. Expected a UdpState struct.");
@@ -99,40 +114,19 @@ namespace GDL90 {
 
             UdpState asyncState = (UdpState)ar.AsyncState;
 
-            // if (asyncState.ipEndpoint == null) {
-            //     throw new ArgumentException("Missing ipEndpoint in UdpState asyncState.");
-            // }
-
+            // push these bytes into the GDL90 lib message stream parser instance.
             byte[] receiveBytes = asyncState.udpClient.EndReceive(ar, ref asyncState.ipEndpoint);
 
-            // check for messages...
-            bool currentlyInAFrame = false;
-            int frameStartIndex = -1;
-            for (int byteIndex = 0; byteIndex < receiveBytes.Length; byteIndex++)
+            if (NetworkMessageStream.CanWrite)
             {
-                if (receiveBytes[byteIndex] == Message.ByteConstants.FlagByte) {
-                    // Start of a frame reached.
-                    if (currentlyInAFrame == false) {
-                        currentlyInAFrame = true;
-                        frameStartIndex = byteIndex;
-                        // Console.WriteLine("Found 0x7e START OF FRAME. MSG TYPE: {0}", Convert.ToHexString(new byte[] {receiveBytes[byteIndex+1]}));
-                        continue;
-                    }
-
-                    // End of a frame reached.
-                    if (currentlyInAFrame) {
-                        // Console.WriteLine("Found 0x7e END OF FRAME.");
-                        ProcessMessage(receiveBytes.AsSpan(frameStartIndex, byteIndex - frameStartIndex + 1));
-
-                        currentlyInAFrame = false;
-                        frameStartIndex = -1;
-                        continue;
-                    }
-                    
-                }
+                NetworkMessageStream.WriteAsync(receiveBytes, 0, receiveBytes.Length);    
+            }
+            else
+            {
+                throw new IOException("NetworkMessageStream is not writable.");
             }
 
-            asyncState.udpClient.BeginReceive(ReceiveCallbackDelegate, ar.AsyncState);
+            asyncState.udpClient.BeginReceive(ReceiveUDPDataCallbackDelegate, ar.AsyncState);
         }
         private void ReadFromUDP(int udpListenPort) {
             UdpClient udpClient = new UdpClient(udpListenPort);
@@ -145,75 +139,27 @@ namespace GDL90 {
                     ipEndpoint = ipEndPoint
                 };
 
-                Console.WriteLine("Starting listen for messages...");
-                udpClient.BeginReceive(ReceiveCallbackDelegate, asyncState);;
+                logger.Info(String.Format("Starting listen for messages..."));
+                udpClient.BeginReceive(ReceiveUDPDataCallbackDelegate, asyncState);;
 
-                Console.WriteLine("Press any key to end...");
+                logger.Info(String.Format("Press any key to end..."));
                 Console.ReadKey();
 
                 udpClient.Close();
             }
             catch (Exception e ) {
-                Console.WriteLine(e.ToString());
+                logger.Error(e.ToString());
             }
         }
-        private void ReadFromStream(Stream dataStream)
+        private void ReadFromFileStream(Stream dataStream)
         {
-            byte[] streamBuffer = new byte[4096]; // Match 4kb default NTFS cluster alignment? I'm thinking about this too much...
-            byte[] messageBuffer = new byte[4096]; // Match the streamBuffer length. Assumption: GDL90 messages are not larger than 4096 bytes.
-            int messageBufferIndex = 0;
-
-            bool messageInProgress = false;
-            int bytesRead = dataStream.Read(streamBuffer);
-            while (bytesRead > 0)
-            {
-                // Console.WriteLine("Bytes read: {0}", Convert.ToHexString(streamBuffer));
-                for (int i = 0; i < bytesRead; i++)
-                {
-                    if (streamBuffer[i] == Message.ByteConstants.FlagByte) { // Start or end of frame, figure out which.
-                        if (!messageInProgress) { // If we're not in the middle of a message, set that we are.
-                            // Console.WriteLine("0x7e found, I think this is a start frame at index {0}", i);
-                            messageInProgress = true;
-                        } else {
-                            // Console.WriteLine("0x7e found, I think this is an end frame at index {0}", i);
-                            messageBuffer[messageBufferIndex] = streamBuffer[i];
-                            
-                            // We are in a very specific edge-case here where a 0x7E Flag Byte was missed. Need to discard and reset.
-                            if (messageBuffer[0] == Message.ByteConstants.FlagByte && messageBuffer[1] == Message.ByteConstants.FlagByte) {
-                                // Console.WriteLine("Corrupted data detected, discarding and re-framing...");
-                                StreamCorruptionCount++;
-                                messageBufferIndex--; // This has the effect of re-using the end-frame flag 0x7E as the start frame and moving the index pointer back one to overwrite the duplicate start frame 0x7E.
-                            }
-                            else
-                            {
-                                messageInProgress = false;
-                                Span<byte> finalMessage = messageBuffer.AsSpan(0, messageBufferIndex + 1);
-                                // Console.WriteLine("Attempting to process a message {0} bytes long: {1}", messageBufferIndex, Convert.ToHexString(finalMessage));
-                                ProcessMessage(finalMessage); // We may want to copy this buffer before sending it off to ProcessMessage in the future to make this async'ish.
-
-                                messageBufferIndex = 0;
-                                continue;
-                            }
-                        }
-                    }
-                    if (messageInProgress) {
-                        messageBuffer[messageBufferIndex] = streamBuffer[i];
-                        messageBufferIndex += 1;
-                    }
-                }
-                //Console.WriteLine("press a key to process next x bytes from dataStream...");
-                //Console.ReadKey();
-                bytesRead = dataStream.Read(streamBuffer);
-            }
+            FileMessageStreamParser.Start(dataStream);
+            Console.WriteLine("Press any key to end...");
+            Console.ReadLine();
         }
-        // private void ReadFromFile(string filePath)
-        // {
-        //     FileStream fileData = File.OpenRead(filePath);
-        //     ReadFromStream(fileData);
-        //     Console.WriteLine("End of file.");
-        // }
+
         public void Start() {
-            Console.WriteLine("Starting");
+            logger.Info("Starting");
             Stopwatch stopwatch = new();
             stopwatch.Start();
             switch (options.Mode)
@@ -223,20 +169,24 @@ namespace GDL90 {
                     break;
                 case ProgramOptions.ProgramMode.ReadFromFile:
                     //ReadFromFile(options.InFile);
-                    ReadFromStream(File.OpenRead(options.InFile));
+                    ReadFromFileStream(File.OpenRead(options.InFile));
                     break;
             }
             stopwatch.Stop();
-            Console.WriteLine("Done.");
+            logger.Info("Done.");
 
-            Console.WriteLine("Processed {0:N0} messages in {1:N0} milliseconds, a rate of {2:N2} messages per second.", MessageCount, stopwatch.ElapsedMilliseconds, ((double)MessageCount / (double)stopwatch.ElapsedMilliseconds * 1000.0).ToString("00.00"));
-            Console.WriteLine("Valid CRC: {0:N0}. Failed CRC: {1:N0} ({2:P})", MessageCount - MessageCountBadCRC, MessageCountBadCRC, (double)MessageCountBadCRC / (double)MessageCount);
-            Console.WriteLine("Stream corruptions detected: {0:N0}.", StreamCorruptionCount);
+            if(options.Stats)
+            {
+                logger.Info(String.Format("Processed {0:N0} messages in {1:N0} milliseconds, a rate of {2:N2} messages per second.", MessageCount, stopwatch.ElapsedMilliseconds, ((double)MessageCount / (double)stopwatch.ElapsedMilliseconds * 1000.0).ToString("00.00")));
+                logger.Info(String.Format("Valid CRC: {0:N0}. Failed CRC: {1:N0} ({2:P})", MessageCount - MessageCountBadCRC, MessageCountBadCRC, (double)MessageCountBadCRC / (double)MessageCount));
+                logger.Info(String.Format("Stream corruptions detected: {0:N0}.", StreamCorruptionCount));
+            }
         }
     }
     public class Program {
         private static ProgramOptions ParseArgs(string[] args)
         {
+            Console.WriteLine("GDL90 Decoder v0.1.0");
             ProgramOptions options = new();
             for (int i = 0; i < args.Length; i++)
             {
@@ -252,11 +202,14 @@ namespace GDL90 {
                     case "--port":
                         options.UdpListenPort = Convert.ToInt32(args[++i]);
                         break;
-                    case "--verbosity":
-                        options.Verbosity = (ProgramOptions.VerbosityEnum)Convert.ToInt32(args[++i]);
+                    case "--loglevel":
+                        options.LogLevel = (Verbosity)Convert.ToInt32(args[++i]);
                         break;
                     case "--force":
                         options.Force = true;
+                        break;
+                    case "--stats":
+                        options.Stats = true;
                         break;
                     case "--help":
                     default:
@@ -268,7 +221,8 @@ namespace GDL90 {
 
             if (!string.IsNullOrEmpty(options.OutFile) && !string.IsNullOrEmpty(options.InFile) && options.Force == false)
             {
-                Console.WriteLine("Warning: --outfile and --infile used together don't make sense. Use --force to proceed anyway.");
+                Console.WriteLine("Warning: --outfile and --infile used together don't make sense. Use --force to proceed anyway.", ConsoleColor.Yellow);
+                Console.ResetColor();
                 PrintUsage();
                 Environment.Exit(1);
             }
@@ -283,8 +237,9 @@ namespace GDL90 {
             usageString.AppendLine("  --infile \"data.bin\" (Reads from a binary file rather than a UDP port.)");
             usageString.AppendLine("  --outfile \"data.bin\" (Saves binary data received to a file before processing.)");
             usageString.AppendLine("  --port 4000 (Use a different UDP port to listen for GLD90 messages. Default 4000.)");
-            usageString.AppendLine("  --verbosity 0-4 (Use 0 for silent, 4 for _extreme_ debugging info. Default 1)");
+            usageString.AppendLine("  --loglevel 0-4 (Silent=0, Error=1, Warn=2, Info=3, Debug=4. Default is 1)");
             usageString.AppendLine("  --force (Continue anyway even if weird arguments are supplied, such as both --infile and --outfile)");
+            usageString.AppendLine("  --stats (Enable statistics output after processing.)");
             usageString.AppendLine("Example 1:");
             usageString.AppendLine("gdl90.exe (Start with default options, listening on UDP port 4000.)");
             usageString.AppendLine("");
