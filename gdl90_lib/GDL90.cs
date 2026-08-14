@@ -1,13 +1,9 @@
 using System;
-using System.ComponentModel;
 using System.IO;
-using System.Linq;
-using System.Reflection.Metadata.Ecma335;
-using System.Runtime.CompilerServices;
-using System.Text;
 
 namespace GDL90 {
     public abstract class Message {
+        public byte[] MessageFrame { get; }
         public byte[] MessageData { get; }
         public readonly MessageType MessageId;
         public readonly string MessageName;
@@ -15,7 +11,10 @@ namespace GDL90 {
         public readonly ushort ComputedCRC;
         public readonly bool ValidCRC = false;
         private static readonly ushort[] CRC16Table = GenerateCRC16Table();
+        
         public Message(Span<byte> messageDataWithIdAndFcsAndFlagBytes) {
+            MessageFrame = messageDataWithIdAndFcsAndFlagBytes.ToArray(); // Store the full end-to-end frame for later use.
+
             Span<byte> messageDataWithIdAndFcs = UnescapeMessage(messageDataWithIdAndFcsAndFlagBytes[1..^1]);
             MessageId = MessageFactory.GetMessageTypeFromByte(messageDataWithIdAndFcs[0]);
             MessageName = MessageFactory.GetMessageNameFromId(MessageId);
@@ -38,8 +37,11 @@ namespace GDL90 {
             MessageData = messageDataWithIdAndFcs[1..^2].ToArray(); // Fancy way of doing .Slice(1)
             //MessageData = UnescapeMessage(messageDataWithIdAndFcs.ToArray())[1..^2].ToArray(); // Fancy way of doing .Slice(1)
         }
+
         public abstract string ToDetailedString();
+
         public abstract string ToShortString();
+
         public static ushort ComputeCRC(Span<byte> messageBytes)
         {
             ushort crc = 0;
@@ -49,6 +51,7 @@ namespace GDL90 {
             }
             return crc;
         }
+
         private static ushort[] GenerateCRC16Table()
         {
             /*
@@ -71,6 +74,7 @@ namespace GDL90 {
             }
             return crc16Table;
         }
+        
         private static Span<byte> UnescapeMessage(Span<byte> messageDataWithIdAndCRC)
         {
             byte[] escapedMessageWithIdAndCRC = new byte[messageDataWithIdAndCRC.Length];
@@ -98,6 +102,7 @@ namespace GDL90 {
             // }
             return escapedMessageWithIdAndCRCSpan;
         }
+        
         public static byte[] AppendFlagBytes(byte[] messageWithCRC)
         {
             byte[] messageWithFlagBytes = new byte[messageWithCRC.Length + 2];
@@ -106,6 +111,7 @@ namespace GDL90 {
             messageWithCRC[messageWithCRC.Length-1] = ByteConstants.FlagByte;
             return messageWithFlagBytes;
         }
+        
         public static byte[] AppendCRC(byte[] messageDataWithIdNoCRC) {
             ushort computedCRC = GDL90.Message.ComputeCRC(messageDataWithIdNoCRC);
             byte[] messageDataWithIdAndCRC = new byte[messageDataWithIdNoCRC.Length + 2];
@@ -120,6 +126,7 @@ namespace GDL90 {
             // Console.WriteLine("");
             return messageDataWithIdAndCRC;
         }
+        
         public static class ByteConstants
         {
             public const byte FlagByte = 0x7E;
@@ -255,22 +262,21 @@ namespace GDL90 {
         const int StreamBufferSize = 4096;
         public AsyncCallback? messageReceivedCallback;
         public AsyncCallback? streamCorruptionDetectedCallback;
-        public AsyncCallback? messageRawBytesReceivedCallback;
+
         public MessageStreamParser()
         {
 
         }
 
-        public MessageStreamParser(AsyncCallback? messageReceivedCallback = null, AsyncCallback? streamCorruptionDetectedCallback = null, AsyncCallback? messageRawBytesReceivedCallback = null)
+        public MessageStreamParser(AsyncCallback? messageReceivedCallback = null, AsyncCallback? streamCorruptionDetectedCallback = null)
         {
             this.messageReceivedCallback = messageReceivedCallback;
             this.streamCorruptionDetectedCallback = streamCorruptionDetectedCallback;
-            this.messageRawBytesReceivedCallback = messageRawBytesReceivedCallback;
         }
 
-        public async void Start(Stream dataStream)
+        public void StartAsync(Stream dataStream)
         {
-            ReadFromStream(dataStream);
+            _ = System.Threading.Tasks.Task.Run(() => ReadFromStream(dataStream));
         }
 
         public class MessageReceivedAsyncResult : IAsyncResult
@@ -298,75 +304,60 @@ namespace GDL90 {
             public bool IsCompleted => true;
         }
 
-        public class MessageRawBytesReceivedAsyncResult : IAsyncResult
-        {
-            private readonly byte[] _rawMessageBytes;
-            public MessageRawBytesReceivedAsyncResult(byte[] rawMessageBytes)
-            {
-                _rawMessageBytes = rawMessageBytes;
-            }
-            public object AsyncState => _rawMessageBytes;
-            public System.Threading.WaitHandle AsyncWaitHandle => throw new NotImplementedException();
-            public bool CompletedSynchronously => true;
-            public bool IsCompleted => true;
-        }
-
         /// <summary>
         /// A method to parse a live stream of GDL90 messages.
         /// </summary>
         /// <param name="dataStream"></param>
-        private async void ReadFromStream(Stream dataStream)
+        private void ReadFromStream(Stream dataStream)
         {
             byte[] streamBuffer = new byte[StreamBufferSize]; // Match 4kb default NTFS cluster alignment? I'm thinking about this too much...
             byte[] messageBuffer = new byte[StreamBufferSize]; // Match the streamBuffer length. Assumption: GDL90 messages are not larger than 4096 bytes.
             int messageBufferIndex = 0;
 
             bool messageInProgress = false;
-            int bytesRead = dataStream.Read(streamBuffer);
-            while (bytesRead > 0)
-            {
-                // Console.WriteLine("Bytes read: {0}", Convert.ToHexString(streamBuffer));
-                for (int i = 0; i < bytesRead; i++)
+            while (dataStream.CanRead) { // While the stream is readable, do work.
+                int bytesRead = dataStream.Read(streamBuffer);
+                if (bytesRead > 0)
                 {
-                    if (streamBuffer[i] == Message.ByteConstants.FlagByte) { // Start or end of frame, figure out which.
-                        if (!messageInProgress) { // If we're not in the middle of a message, set that we are.
-                            // Console.WriteLine("0x7e found, I think this is a start frame at index {0}", i);
-                            messageInProgress = true;
-                        } else {
-                            // Console.WriteLine("0x7e found, I think this is an end frame at index {0}", i);
-                            messageBuffer[messageBufferIndex] = streamBuffer[i];
-                            
-                            // We are in a very specific edge-case here where a 0x7E Flag Byte was missed. Need to discard and reset.
-                            if (messageBuffer[0] == Message.ByteConstants.FlagByte && messageBuffer[1] == Message.ByteConstants.FlagByte) {
-                                // Console.WriteLine("Corrupted data detected, discarding and re-framing...");
-                                streamCorruptionDetectedCallback?.Invoke(new StreamCorruptionDetectedAsyncResult());
-                                messageBufferIndex--; // This has the effect of re-using the end-frame flag 0x7E as the start frame and moving the index pointer back one to overwrite the duplicate start frame 0x7E.
-                            }
-                            else
-                            {
-                                messageInProgress = false;
-                                Span<byte> finalMessage = messageBuffer.AsSpan(0, messageBufferIndex + 1); // We may want to copy this buffer before sending it off to ProcessMessage in the future to make this async'ish.
-                                // Console.WriteLine("Attempting to process a message {0} bytes long: {1}", messageBufferIndex, Convert.ToHexString(finalMessage));
-                                messageRawBytesReceivedCallback?.Invoke(new MessageRawBytesReceivedAsyncResult(finalMessage.ToArray()));
+                    // Console.WriteLine("Bytes read: {0}", Convert.ToHexString(streamBuffer));
+                    for (int i = 0; i < bytesRead; i++)
+                    {
+                        if (streamBuffer[i] == Message.ByteConstants.FlagByte) { // Start or end of frame, figure out which.
+                            if (!messageInProgress) { // If we're not in the middle of a message, set that we are.
+                                // Console.WriteLine("0x7e found, I think this is a start frame at index {0}", i);
+                                messageInProgress = true;
+                            } else {
+                                // Console.WriteLine("0x7e found, I think this is an end frame at index {0}", i);
+                                messageBuffer[messageBufferIndex] = streamBuffer[i];
+                                
+                                // We are in a very specific edge-case here where a 0x7E Flag Byte was missed. Need to discard and reset.
+                                if (messageBuffer[0] == Message.ByteConstants.FlagByte && messageBuffer[1] == Message.ByteConstants.FlagByte) {
+                                    // Console.WriteLine("Corrupted data detected, discarding and re-framing...");
+                                    streamCorruptionDetectedCallback?.Invoke(new StreamCorruptionDetectedAsyncResult());
+                                    messageBufferIndex--; // This has the effect of re-using the end-frame flag 0x7E as the start frame and moving the index pointer back one to overwrite the duplicate start frame 0x7E.
+                                }
+                                else
+                                {
+                                    messageInProgress = false;
+                                    Span<byte> finalMessage = messageBuffer.AsSpan(0, messageBufferIndex + 1); // We may want to copy this buffer before sending it off to ProcessMessage in the future to make this async'ish.
+                                    // Console.WriteLine("Attempting to process a message {0} bytes long: {1}", messageBufferIndex, Convert.ToHexString(finalMessage));
 
-                                Message newGDL90Message = MessageFactory.CreateMessageFromBytes(finalMessage); 
+                                    Message newGDL90Message = MessageFactory.CreateMessageFromBytes(finalMessage); 
 
-                                messageReceivedCallback?.Invoke(new MessageReceivedAsyncResult(newGDL90Message)); 
+                                    messageReceivedCallback?.Invoke(new MessageReceivedAsyncResult(newGDL90Message)); 
 
-                                messageBufferIndex = 0;
-                                continue;
+                                    messageBufferIndex = 0;
+                                    continue;
+                                }
                             }
                         }
-                    }
-                    if (messageInProgress) {
-                        messageBuffer[messageBufferIndex] = streamBuffer[i];
-                        messageBufferIndex += 1;
+                        if (messageInProgress) {
+                            messageBuffer[messageBufferIndex] = streamBuffer[i];
+                            messageBufferIndex += 1;
+                        }
                     }
                 }
-                bytesRead = dataStream.Read(streamBuffer);
             }
-
-            
         }
     }
 }
