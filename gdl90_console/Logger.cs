@@ -1,53 +1,67 @@
 using System;
 
-public enum Verbosity : int
+namespace GDL90.Logging
 {
-    Silent = 0,
-    Error = 1,
-    Warn = 2,
-    Info = 3,
-    Debug = 4
-}
-public class Logger
-{
-    public Verbosity LogLevel { get; set; } = Verbosity.Info;
-    public Logger()
+    public enum Verbosity : int
     {
-        
+        Silent = 0,
+        Error = 1,
+        Warn = 2,
+        Info = 3,
+        Debug = 4
     }
-    public Logger(Verbosity logLevel)
+
+    public interface ILogger
     {
-        LogLevel = logLevel;
-        //Log($"Logger initialized with log level {LogLevel}.", LogLevel);
+        Verbosity LogLevel { get; set; }
+
+        void Debug(string message);
+        void Error(string message);
+        void Info(string message);
+        void Warn(string message);
     }
-    
-    public void Log(string message, Verbosity level = Verbosity.Info, ConsoleColor logColor = ConsoleColor.White)
+
+    public class Logger : ILogger
     {
-        if (level <= LogLevel)
+        public Verbosity LogLevel { get; set; } = Verbosity.Info;
+        public Logger()
         {
-            Console.ForegroundColor = logColor;
-            Console.WriteLine(message);
-            Console.ResetColor();
+
         }
-    }
+        public Logger(Verbosity logLevel)
+        {
+            LogLevel = logLevel;
+            //Log($"Logger initialized with log level {LogLevel}.", LogLevel);
+        }
 
-    public void Warn(string message)
-    {
-        Log($"WARN: {message}", Verbosity.Warn, ConsoleColor.Yellow);
-    }
+        private void Log(string message, Verbosity level = Verbosity.Info, ConsoleColor logColor = ConsoleColor.White)
+        {
+            if (level <= LogLevel)
+            {
+                Console.ForegroundColor = logColor;
+                Console.WriteLine(message);
+                Console.ResetColor();
+            }
+        }
 
-    public void Error(string message)
-    {
-        Log($"ERROR: {message}", Verbosity.Error, ConsoleColor.Red);
-    }
+        public void Warn(string message)
+        {
+            Log($"WARN: {message}", Verbosity.Warn, ConsoleColor.Yellow);
+        }
 
-    public void Info(string message)
-    {
-        Log($"INFO: {message}", Verbosity.Info, ConsoleColor.White);
-    }
+        public void Error(string message)
+        {
+            Log($"ERROR: {message}", Verbosity.Error, ConsoleColor.Red);
+        }
 
-    public void Debug(string message)
-    {
-        Log($"DEBUG: {message}", Verbosity.Debug, ConsoleColor.Cyan);
+        public void Info(string message)
+        {
+            Log($"INFO: {message}", Verbosity.Info, ConsoleColor.White);
+        }
+
+        public void Debug(string message)
+        {
+            Log($"DEBUG: {message}", Verbosity.Debug, ConsoleColor.Cyan);
+        }
     }
 }
