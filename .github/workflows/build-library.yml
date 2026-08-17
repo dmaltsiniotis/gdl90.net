@@ -1,0 +1,32 @@
+name: Build Library
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore library project
+        run: dotnet restore gdl90_lib/gdl90_lib.csproj
+
+      - name: Build library in Release mode
+        run: dotnet build gdl90_lib/gdl90_lib.csproj --configuration Release --no-restore
+
+      - name: Upload Release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gdl90-lib-release
+          path: gdl90_lib/bin/Release/net10.0/
