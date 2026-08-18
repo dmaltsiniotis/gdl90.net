@@ -26,25 +26,18 @@ namespace GDL90 {
         }
     }
 
-    public struct UdpState
-    {
-        public UdpClient udpClient;
-        public IPEndPoint? ipEndpoint;
-    }
-
     public class Processor {
         private readonly ProgramOptions options;
         public int receivedBytesBeforeFlush = 0;
         public FileStream? binaryStratuxDataFile = null;
-        private readonly AsyncCallback ReceiveUDPDataCallbackDelegate;
         private readonly AsyncCallback GDL90MessageReceivedCallbackDelegate;
         private readonly AsyncCallback StreamCorruptionCallbackDelegate;
         private int MessageCount = 0;
         private int MessageCountBadCRC = 0;
         private int StreamCorruptionCount = 0;
         private Logging.Logger logger;
+        private readonly UDPListener UdpListener = new UDPListener();
         private readonly MessageStreamParser MessageStreamParser;
-        private readonly MemoryStream NetworkMessageStream = new MemoryStream();
 
         public Processor(ProgramOptions options) {
             this.options = options;
@@ -52,12 +45,11 @@ namespace GDL90 {
             if (!string.IsNullOrEmpty(options.OutFile)) {
                  binaryStratuxDataFile = new FileStream(options.OutFile, FileMode.OpenOrCreate | FileMode.Append, FileAccess.Write);
             }
-            ReceiveUDPDataCallbackDelegate = new AsyncCallback(ReceiveUDPDataCallback);
             GDL90MessageReceivedCallbackDelegate = new AsyncCallback(ProcessMessage);
             StreamCorruptionCallbackDelegate = new AsyncCallback(ProcessStreamCorruption);
 
             MessageStreamParser = new MessageStreamParser(GDL90MessageReceivedCallbackDelegate, StreamCorruptionCallbackDelegate);
-            MessageStreamParser.StartAsync(NetworkMessageStream);
+            MessageStreamParser.StartAsync(UdpListener.NetworkMessageStream);
         }
 
         private void ProcessStreamCorruption(IAsyncResult ar) {
@@ -76,7 +68,7 @@ namespace GDL90 {
             MessageCount++;
 
             if (newGDL90Message.ValidCRC) {
-                logger.Info(String.Format("{0} {1:0000000} {2}", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount, newGDL90Message.ToShortString()));
+                logger.Debug(String.Format("{0} {1:0000000} {2}", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount, newGDL90Message.ToShortString()));
 
                 // If we're logging to file, dump the message bytes back out.
                 if (!string.IsNullOrEmpty(options.OutFile) && binaryStratuxDataFile != null && binaryStratuxDataFile.CanWrite) {
@@ -96,58 +88,19 @@ namespace GDL90 {
             }
         }
 
-        public void ReceiveUDPDataCallback(IAsyncResult ar) {
-            if (ar.AsyncState == null)
-            {
-                throw new ArgumentException("Missing asyncState. Expected a UdpState struct.");
-            }
-
-            UdpState asyncState = (UdpState)ar.AsyncState;
-
-            // push these bytes into the GDL90 lib message stream parser instance.
-            byte[] receiveBytes = asyncState.udpClient.EndReceive(ar, ref asyncState.ipEndpoint);
-
-            if (NetworkMessageStream.CanWrite)
-            {
-                NetworkMessageStream.Write(receiveBytes, 0, receiveBytes.Length);    
-            }
-            else
-            {
-                throw new IOException("NetworkMessageStream is not writable.");
-            }
-
-            asyncState.udpClient.BeginReceive(ReceiveUDPDataCallbackDelegate, ar.AsyncState);
-        }
-
-        private void ReadFromUDP(int udpListenPort) {
-            UdpClient udpClient = new UdpClient(udpListenPort);
-            try {
-                IPEndPoint ipEndPoint = new IPEndPoint(IPAddress.Any, 0);
-
-                UdpState asyncState = new UdpState
-                {
-                    udpClient = udpClient,
-                    ipEndpoint = ipEndPoint
-                };
-
-                logger.Info(String.Format("Starting listen for messages..."));
-                udpClient.BeginReceive(ReceiveUDPDataCallbackDelegate, asyncState);;
-
-                logger.Info(String.Format("Press any key to end..."));
-                Console.ReadKey();
-
-                udpClient.Close();
-            }
-            catch (Exception e ) {
-                logger.Error(e.ToString());
-            }
-        }
-
         private void ReadFromFileStream(Stream dataStream)
         {
             MessageStreamParser.StartAsync(dataStream);
-            Console.WriteLine("Press any key to end...");
-            Console.ReadLine();
+            
+            while(dataStream.Position < dataStream.Length)
+            {
+                System.Threading.Thread.Sleep(10); // Sleep for a second to avoid busy waiting.
+                // Wait for the stream to finish reading.
+            }
+            // TODO: Put this behind a an optional input flag.
+            // Console.WriteLine("Press any key to end...");
+            // Console.ReadLine();
+            Console.WriteLine("Done reading from file, exiting.");
         }
 
         public void Start() {
@@ -157,10 +110,9 @@ namespace GDL90 {
             switch (options.Mode)
             {
                 case ProgramOptions.ProgramMode.ListenUDP:
-                    ReadFromUDP(options.UdpListenPort);
+                    UdpListener.StartListening(options.UdpListenPort);
                     break;
                 case ProgramOptions.ProgramMode.ReadFromFile:
-                    //ReadFromFile(options.InFile);
                     ReadFromFileStream(File.OpenRead(options.InFile));
                     break;
             }
@@ -222,6 +174,7 @@ namespace GDL90 {
 
             return options;
         }
+        
         private static void PrintUsage()
         {
             StringBuilder usageString = new StringBuilder();
@@ -244,6 +197,7 @@ namespace GDL90 {
             usageString.AppendLine("");
             Console.WriteLine(usageString);
         }
+        
         public static int Main(params string[] args) {
             new Processor(ParseArgs(args)).Start();
             return 0;
