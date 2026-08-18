@@ -35,7 +35,7 @@ namespace GDL90 {
 
         public override string ToShortString()
         {
-            return string.Format("Stratux AHRS: Roll: {0} Pitch: {1} Heading: {2}", RollDegrees, PitchDegrees, HeadingDegrees);
+            return string.Format("Stratux AHRS: Roll: {0} ({1:X4}) Pitch: {2} ({3:X4}) Heading: {4} ({5:X4})", RollDegrees, RollRaw, PitchDegrees, PitchRaw, HeadingDegrees, HeadingRaw);
         }
 
         public override string ToDetailedString()
@@ -46,15 +46,15 @@ namespace GDL90 {
             debugBuilder.AppendLine(string.Format("                StatusByte1: 0x{0:X2}", StatusByte1));
             debugBuilder.AppendLine(string.Format("                StatusByte2: 0x{0:X2}", StatusByte2));
             debugBuilder.AppendLine(string.Format("                StatusByte3: 0x{0:X2}", StatusByte3));
-            debugBuilder.AppendLine(string.Format("                      Roll: {0}", RollDegrees));
-            debugBuilder.AppendLine(string.Format("                     Pitch: {0}", PitchDegrees));
-            debugBuilder.AppendLine(string.Format("                   Heading: {0}", HeadingDegrees));
-            debugBuilder.AppendLine(string.Format("                  SlipSkid: {0}", SlipSkid));
-            debugBuilder.AppendLine(string.Format("                   YawRate: {0}", YawRate));
-            debugBuilder.AppendLine(string.Format("                     GLoad: {0}", GLoad));
-            debugBuilder.AppendLine(string.Format("                  Airspeed: {0}", Airspeed));
-            debugBuilder.AppendLine(string.Format("          PressureAltitude: {0}", PressureAltitude));
-            debugBuilder.AppendLine(string.Format("             VerticalSpeed: {0}", VerticalSpeed));
+            debugBuilder.AppendLine(string.Format("                      Roll: {0} ({1:X4})", RollDegrees, RollRaw));
+            debugBuilder.AppendLine(string.Format("                     Pitch: {0} ({1:X4})", PitchDegrees, PitchRaw));
+            debugBuilder.AppendLine(string.Format("                   Heading: {0} ({1:X4})", HeadingDegrees, HeadingRaw));
+            debugBuilder.AppendLine(string.Format("                  SlipSkid: {0} ({1:X4})", SlipSkid, SlipSkidRaw));
+            debugBuilder.AppendLine(string.Format("                   YawRate: {0} ({1:X4})", YawRate, YawRateRaw));
+            debugBuilder.AppendLine(string.Format("                     GLoad: {0} ({1:X4})", GLoad, GLoadRaw));
+            debugBuilder.AppendLine(string.Format("                  Airspeed: {0} ({1:X4})", Airspeed, AirspeedRaw));
+            debugBuilder.AppendLine(string.Format("          PressureAltitude: {0} ({1:X4})", PressureAltitude, PressureAltitudeRaw));
+            debugBuilder.AppendLine(string.Format("             VerticalSpeed: {0} ({1:X4})", VerticalSpeed, VerticalSpeedRaw));
             debugBuilder.AppendLine(string.Format("             ReservedByte1: 0x{0:X2}", ReservedByte1));
             debugBuilder.AppendLine(string.Format("             ReservedByte2: 0x{0:X2}", ReservedByte2));
             return debugBuilder.ToString();
