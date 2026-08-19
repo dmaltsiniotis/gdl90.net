@@ -4,8 +4,7 @@ This repository contains .NET 10.0 code for an implementation of the GDL90 speci
 
 ## Project description
 
-This project is structured such that you may use Visual Studio 2026 or Visual Studio Code, to build, run, and debug the project. The only hard requirement is .NET 10.0 (although the project is known to work with .NET 8.0 and lower).
-
+This project is structured such that you may use Visual Studio 2026 or Visual Studio Code, to build, run, and debug the project. The only hard requirement is .NET 10.0 although the project may work with NET 9.0 at a minimum. This is dictated by use of language feature introduced in 9+ - System.IO.Pipelines.
 
 ### gdl90_lib
 

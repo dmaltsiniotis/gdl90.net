@@ -1,0 +1,27 @@
+name: PR Tests and Build
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore solution
+        run: dotnet restore gdl90.sln
+
+      - name: Build solution
+        run: dotnet build gdl90.sln --configuration Debug --no-restore
+
+      - name: Run tests
+        run: dotnet test gdl90_tests/gdl90_tests.csproj --configuration Debug --no-build --logger "trx;LogFileName=test-results.trx"

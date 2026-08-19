@@ -24,14 +24,15 @@ namespace GDL90.Logging
     public class Logger : ILogger
     {
         public Verbosity LogLevel { get; set; } = Verbosity.Info;
+
         public Logger()
         {
 
         }
+
         public Logger(Verbosity logLevel)
         {
             LogLevel = logLevel;
-            //Log($"Logger initialized with log level {LogLevel}.", LogLevel);
         }
 
         private void Log(string message, Verbosity level = Verbosity.Info, ConsoleColor logColor = ConsoleColor.White)
@@ -46,7 +47,7 @@ namespace GDL90.Logging
 
         public void Warn(string message)
         {
-            Log($"WARN: {message}", Verbosity.Warn, ConsoleColor.Yellow);
+            Log($" WARN: {message}", Verbosity.Warn, ConsoleColor.Yellow);
         }
 
         public void Error(string message)
@@ -56,7 +57,7 @@ namespace GDL90.Logging
 
         public void Info(string message)
         {
-            Log($"INFO: {message}", Verbosity.Info, ConsoleColor.White);
+            Log($" INFO: {message}", Verbosity.Info, ConsoleColor.White);
         }
 
         public void Debug(string message)

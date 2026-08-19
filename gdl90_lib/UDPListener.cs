@@ -45,30 +45,13 @@ namespace GDL90
 
         public void StartListening(int udpListenPort) {
             UdpClient udpClient = new UdpClient(udpListenPort);
-            try {
-                IPEndPoint ipEndPoint = new IPEndPoint(IPAddress.Any, 0);
-
-                UdpState asyncState = new UdpState
-                {
-                    udpClient = udpClient,
-                    ipEndpoint = ipEndPoint
-                };
-
-                udpClient.BeginReceive(ReceiveUDPDataCallbackDelegate, asyncState);;
-
-                Console.ReadKey();
-
-                udpClient.Close();
-            }
-            catch (Exception ex ) {
-                // wat do?
-                System.Diagnostics.Debug.WriteLine(ex.ToString());
-            }
-            finally {
-                udpClient.Close();
-            }
+            IPEndPoint ipEndPoint = new IPEndPoint(IPAddress.Any, 0);
+            UdpState asyncState = new UdpState
+            {
+                udpClient = udpClient,
+                ipEndpoint = ipEndPoint
+            };
+            udpClient.BeginReceive(ReceiveUDPDataCallbackDelegate, asyncState);
         }
-
-
     }
 }
