@@ -14,9 +14,9 @@ namespace GDL90.Tests;
 public class ExternalDataTests
 {
     [Theory]
-    [InlineData("ADS-B_TEST-DATA-SMALL.zip")]
-    [InlineData("ADS-B_TEST-DATA-SMALL-TRAFFIC.zip")]
-    public async Task Compressed_External_Data_RoundTrips_Through_Message_Parser(string zipFileName)
+    [InlineData("ADS-B_TEST-DATA-SMALL.zip", 48)]
+    [InlineData("ADS-B_TEST-DATA-SMALL-TRAFFIC.zip", 29455)]
+    public async Task Compressed_External_Data_RoundTrips_Through_Message_Parser(string zipFileName, int expectedMessageCount)
     {
         int messageCount = 0;
         MessageStreamParser messageStreamParser = new MessageStreamParser();
@@ -38,17 +38,6 @@ public class ExternalDataTests
             messageCount++;
         }
 
-        // TODO: There's got to be a better way to do this.
-        switch (zipFileName)
-        {
-            case "ADS-B_TEST-DATA-SMALL.zip":
-                Assert.Equal(48, messageCount);
-                break;
-            case "ADS-B_TEST-DATA-SMALL-TRAFFIC.zip":
-                Assert.Equal(29455, messageCount);
-                break;
-            default:
-                throw new InvalidOperationException($"Unexpected zip file name: {zipFileName}");
-        }
+        Assert.Equal(expectedMessageCount, messageCount);
     }
 }
