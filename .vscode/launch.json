@@ -2,18 +2,33 @@
     "version": "0.2.0",
     "configurations": [
         {
-            // Use IntelliSense to find out which attributes exist for C# debugging
-            // Use hover for the description of the existing attributes
-            // For further information visit https://github.com/dotnet/vscode-csharp/blob/main/debugger-launchjson.md
-            "name": ".NET Core Launch (console)",
+            "name": "File in mode",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
-            // If you have changed target frameworks, make sure to update the program path.
-            "program": "${workspaceFolder}/gdl90_console/bin/Debug/net10.0/gdl90_console.dll",
-            "args": [],
-            "cwd": "${workspaceFolder}/gdl90_console",
-            // For more information about the 'console' field, see https://aka.ms/VSCode-CS-LaunchJson-Console
+            "program": "${workspaceFolder}/GDL90.Console/bin/Debug/net10.0/GDL90.Console.dll",
+            "args": [
+                "--infile",
+                "${workspaceFolder}/../gdl90_testdata/ADS-B_TEST-DATA-ENORMOUS.bin",
+                "--benchmark",
+                "--stats",
+                "--experimental"
+            ],
+            "cwd": "${workspaceFolder}/GDL90.Console",
+            "console": "integratedTerminal", // Changed from "internalConsole" becuase the demo application will wait for user input (press any key) to end the program.
+            "stopAtEntry": false
+        },
+        {
+            "name": "Standard UDP Mode",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/GDL90.Console/bin/Debug/net10.0/GDL90.Console.dll",
+            "args": [
+                "--loglevel",
+                "4"
+            ],
+            "cwd": "${workspaceFolder}/GDL90.Console",
             "console": "integratedTerminal", // Changed from "internalConsole" becuase the demo application will wait for user input (press any key) to end the program.
             "stopAtEntry": false
         },
