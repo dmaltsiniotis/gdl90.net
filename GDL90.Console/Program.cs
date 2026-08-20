@@ -24,7 +24,7 @@ namespace GDL90.Console {
         public string OutFile = String.Empty; // Output to a recorded file.
         public bool Force = false; // Make sure options that don't make sense together are intended.
         public bool Stats = false; // Enable statistics output.
-        public bool Benchmark = false; // Enable benchmark mode.
+        public bool DontWaitForExit = false; // Enable DontWaitForExit mode.
         public int UdpListenPort = 4000; // Default 4000 for Stratux GDL90
         public Logging.Verbosity LogLevel = Logging.Verbosity.Info;
 
@@ -124,7 +124,7 @@ namespace GDL90.Console {
                     throw new NotImplementedException($"Program Mode {options.Mode} not implemented yet.");
                 
             }
-            if (options.Benchmark == false)
+            if (options.DontWaitForExit == false)
             {
                 logger.Info("Press any key to exit...");
                 System.Console.ReadLine();
@@ -143,7 +143,8 @@ namespace GDL90.Console {
 
         private async Task ExecuteExperimentalMode()
         {
-            throw new NotImplementedException("There are no experimental methods implemented yet.");
+            logger.Info("There are currently no experimental methods implemented. Reserved for future use.");
+            await Task.CompletedTask;
         }
     }
 
@@ -174,8 +175,8 @@ namespace GDL90.Console {
                     case "--stats":
                         options.Stats = true;
                         break;
-                    case "--benchmark":
-                        options.Benchmark = true;
+                    case "--dontwaitforexit":
+                        options.DontWaitForExit = true;
                         break;
                     case "--experimental":
                         options.Mode = ProgramOptions.ProgramMode.Experimental;
@@ -216,7 +217,7 @@ namespace GDL90.Console {
             usageString.AppendLine("  --loglevel 0-4 (Silent=0, Error=1, Warn=2, Info=3, Debug=4. Default is 3 - Info.)");
             usageString.AppendLine("  --force (Continue anyway even if weird arguments are supplied, such as both --infile and --outfile)");
             usageString.AppendLine("  --stats (Enable statistics output after processing.)");
-            usageString.AppendLine("  --benchmark (Enable benchmark mode, does not wait for user input to exit after reading all data.)");
+            usageString.AppendLine("  --dontwaitforexit (Enable DontWaitForExit mode, does not wait for user input to exit after reading all data.)");
             usageString.AppendLine("Example 1:");
             usageString.AppendLine("gdl90.exe (Start with default options, listening on UDP port 4000.)");
             usageString.AppendLine("");
