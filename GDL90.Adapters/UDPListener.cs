@@ -26,7 +26,8 @@ namespace GDL90.Adapters
             ReceiveUDPDataCallbackDelegate = new AsyncCallback(ReceiveUDPDataCallback);
         }
 
-        public async void ReceiveUDPDataCallback(IAsyncResult ar) {
+        public void ReceiveUDPDataCallback(IAsyncResult ar)
+        {
             if (ar.AsyncState == null)
             {
                 throw new ArgumentException("Missing asyncState. Expected a UdpState struct.");
@@ -34,11 +35,20 @@ namespace GDL90.Adapters
 
             UdpState asyncState = (UdpState)ar.AsyncState;
             byte[] receiveBytes = asyncState.udpClient.EndReceive(ar, ref asyncState.ipEndpoint);
-            await messageParserChannelWriter.WriteAsync(receiveBytes.AsMemory(0, receiveBytes.Length).ToArray());
-            asyncState.udpClient.BeginReceive(ReceiveUDPDataCallbackDelegate, ar.AsyncState);
+            //await messageParserChannelWriter.WriteAsync(receiveBytes.AsMemory(0, receiveBytes.Length).ToArray());
+            if (messageParserChannelWriter.TryWrite(receiveBytes.AsMemory(0, receiveBytes.Length).ToArray()) == true)
+            {
+                asyncState.udpClient.BeginReceive(ReceiveUDPDataCallbackDelegate, ar.AsyncState);
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine("Failed to write UDP data to channel. Channel may be full or closed. Closing UDP socket.");
+                asyncState.udpClient.Close();
+                //throw new InvalidOperationException("Failed to write UDP data to channel. Channel may be full or closed.");
+            }
         }
 
-        public async Task StartListening(int udpListenPort) {
+        public Task StartListening(int udpListenPort) {
             UdpClient udpClient = new UdpClient(udpListenPort);
             IPEndPoint ipEndPoint = new IPEndPoint(IPAddress.Any, 0);
             UdpState asyncState = new UdpState
@@ -47,6 +57,7 @@ namespace GDL90.Adapters
                 ipEndpoint = ipEndPoint
             };
             udpClient.BeginReceive(ReceiveUDPDataCallbackDelegate, asyncState);
+            return Task.CompletedTask;
         }
     }
 }
