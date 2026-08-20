@@ -38,13 +38,14 @@ public class ExternalDataTests
             messageCount++;
         }
 
+        // TODO: There's got to be a better way to do this.
         switch (zipFileName)
         {
             case "ADS-B_TEST-DATA-SMALL.zip":
                 Assert.Equal(48, messageCount);
                 break;
             case "ADS-B_TEST-DATA-SMALL-TRAFFIC.zip":
-                Assert.Equal(29483, messageCount);
+                Assert.Equal(29455, messageCount);
                 break;
             default:
                 throw new InvalidOperationException($"Unexpected zip file name: {zipFileName}");

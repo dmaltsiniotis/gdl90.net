@@ -3,6 +3,7 @@ using GDL90.Core.Messages;
 
 namespace GDL90.Core {
     public abstract class Message {
+        public const int MaximumMessageLength = 1024; // The apparent largest message (Uplink) from the spec is 436 bytes. This is a sanity check to prevent runaway memory usage.
         public byte[] MessageFrame { get; }
         public byte[] MessageData { get; }
         public readonly MessageType MessageId;
@@ -107,8 +108,8 @@ namespace GDL90.Core {
         {
             byte[] messageWithFlagBytes = new byte[messageWithCRC.Length + 2];
             Array.Copy(messageWithCRC, 0, messageWithFlagBytes, 1, messageWithCRC.Length);
-            messageWithCRC[0] = ByteConstants.FlagByte;
-            messageWithCRC[messageWithCRC.Length-1] = ByteConstants.FlagByte;
+            messageWithFlagBytes[0] = ByteConstants.FlagByte;
+            messageWithFlagBytes[messageWithFlagBytes.Length-1] = ByteConstants.FlagByte;
             return messageWithFlagBytes;
         }
         

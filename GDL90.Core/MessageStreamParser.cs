@@ -10,7 +10,7 @@ namespace GDL90.Core {
         public readonly Channel<Message> MessageOutputChannel;
 
         private bool messageInProgress = false;
-        private readonly byte[] messageBuffer = new byte[1024]; // The apparent largest message (Uplink) from the spec is 436 bytes.
+        private readonly byte[] messageBuffer = new byte[Message.MaximumMessageLength]; // The apparent largest message (Uplink) from the spec is 436 bytes.
         private int messageBufferIndex = 0;
 
         public MessageStreamParser()
