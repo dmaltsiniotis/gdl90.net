@@ -4,9 +4,10 @@ on:
   push:
     branches:
       - master
-    tags:
-      - 'v*'
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   release:
@@ -24,14 +25,22 @@ jobs:
       - name: Restore solution
         run: dotnet restore gdl90.sln
 
-      - name: Build release artifacts
-        run: dotnet build gdl90.sln --configuration Release --no-restore
+      - name: Publish GDL90.Core
+        run: dotnet publish GDL90.Core/GDL90.Core.csproj --configuration Release --no-restore --output ./artifacts/GDL90.Core /p:DebugSymbols=false /p:DebugType=none
 
-      - name: Publish library artifact
-        uses: actions/upload-artifact@v4
+      - name: Publish GDL90.Adapters
+        run: dotnet publish GDL90.Adapters/GDL90.Adapters.csproj --configuration Release --no-restore --output ./artifacts/GDL90.Adapters /p:DebugSymbols=false /p:DebugType=none
+
+      - name: Package release artifacts
+        run: |
+          mkdir -p ./artifacts
+          zip -j ./artifacts/GDL90-libraries-release.zip ./artifacts/GDL90.Core/* ./artifacts/GDL90.Adapters/*
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
         with:
-          name: gdl90-core-release
-          path: |
-            GDL90.Core/bin/Release/
-            GDL90.Console/bin/Release/
-          if-no-files-found: error
+          tag_name: release-${{ github.run_number }}
+          name: Release ${{ github.run_number }}
+          generate_release_notes: true
+          files: |
+            ./artifacts/GDL90-libraries-release.zip

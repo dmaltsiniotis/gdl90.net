@@ -12,7 +12,11 @@ namespace GDL90.Core {
         public readonly ushort ComputedCRC;
         public readonly bool ValidCRC = false;
         private static readonly ushort[] CRC16Table = GenerateCRC16Table();
-        
+
+        public abstract string ToDetailedString();
+
+        public abstract string ToShortString();
+
         public Message(Span<byte> messageDataWithIdAndFcsAndFlagBytes) {
             MessageFrame = messageDataWithIdAndFcsAndFlagBytes.ToArray(); // Store the full end-to-end frame for later use.
 
@@ -38,10 +42,6 @@ namespace GDL90.Core {
             MessageData = messageDataWithIdAndFcs[1..^2].ToArray(); // Fancy way of doing .Slice(1)
             //MessageData = UnescapeMessage(messageDataWithIdAndFcs.ToArray())[1..^2].ToArray(); // Fancy way of doing .Slice(1)
         }
-
-        public abstract string ToDetailedString();
-
-        public abstract string ToShortString();
 
         public static ushort ComputeCRC(Span<byte> messageBytes)
         {
