@@ -1,29 +1,46 @@
-using System;
-using System.IO;
-using Xunit;
-using GDL90.Core;
-using GDL90.Core.Messages;
+// using System;
+// using System.Collections.Generic;
+// using System.IO;
+// using System.IO.Compression;
+// using Xunit;
+// using GDL90.Core;
 
-namespace GDL90.Tests;
+// namespace GDL90.Tests;
 
-public class ExternalDataTests
-{
-    //[Fact] // TODO We'll implement this later.
-    public void External_Data_Files_From_Stratux_Are_Parseable()
-    {
-        string externalDataDirectory = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "gdl90_testdata"));
-        if (!Directory.Exists(externalDataDirectory))
-        {
-            // This data directory is optional and may not exist on CI/target systems.
-            Console.WriteLine("External test data directory not found: {0}. Skipping test.", externalDataDirectory);
-            return;
-        }
+// public class ExternalDataTests
+// {
+//     [Theory]
+//     [InlineData("ADS-B_TEST-DATA-SMALL.zip")]
+//     [InlineData("ADS-B_TEST-DATA-SMALL-TRAFFIC.zip")]
+//     public void Compressed_External_Data_RoundTrips_Through_Message_Parser(string zipFileName)
+//     {
+//         string zipPath = Path.Combine(AppContext.BaseDirectory, "data", zipFileName);
+//         Assert.True(File.Exists(zipPath), $"Expected test zip file was not found: {zipPath}");
 
-        foreach (string binFilePath in Directory.EnumerateFiles(externalDataDirectory, "*.bin", SearchOption.TopDirectoryOnly))
-        {
-            using Stream fileStream = File.OpenRead(binFilePath);
-            Console.WriteLine("Found external test data file: {0}, parsing...", binFilePath);
-            Assert.True(fileStream.CanRead);
-        }
-    }
-}
+//         List<byte> reconstructedBytes = new List<byte>(1024);
+//         int streamCorruptionCount = 0;
+
+//         AsyncCallback onMessage = ar =>
+//         {
+//             Assert.NotNull(ar.AsyncState);
+//             Message message = (Message)ar.AsyncState!;
+//             reconstructedBytes.AddRange(message.MessageFrame);
+//         };
+
+//         AsyncCallback onCorruption = _ => { streamCorruptionCount++; };
+
+//         MessageStreamParser parser = new MessageStreamParser(onMessage, onCorruption);
+//         //using MemoryStream expectedBytesBuffer = new MemoryStream();
+
+//         using ZipArchive zipArchive = ZipFile.OpenRead(zipPath);
+//         ZipArchiveEntry zipEntry = Assert.Single(zipArchive.Entries);
+//         using Stream decompressedStream = zipEntry.Open();
+//         parser.StartAsync(decompressedStream);
+
+//         byte[] expectedBytes = File.ReadAllBytes(zipPath);
+//         byte[] actualBytes = reconstructedBytes.ToArray();
+
+//         Assert.Equal(0, streamCorruptionCount);
+//         Assert.Equal(expectedBytes, actualBytes);
+//     }
+// }
