@@ -104,15 +104,6 @@ namespace GDL90.Core {
             return escapedMessageWithIdAndCRCSpan;
         }
         
-        public static byte[] AppendFlagBytes(byte[] messageWithCRC)
-        {
-            byte[] messageWithFlagBytes = new byte[messageWithCRC.Length + 2];
-            Array.Copy(messageWithCRC, 0, messageWithFlagBytes, 1, messageWithCRC.Length);
-            messageWithFlagBytes[0] = ByteConstants.FlagByte;
-            messageWithFlagBytes[messageWithFlagBytes.Length-1] = ByteConstants.FlagByte;
-            return messageWithFlagBytes;
-        }
-        
         public static byte[] AppendCRC(byte[] messageDataWithIdNoCRC) {
             ushort computedCRC = GDL90.Core.Message.ComputeCRC(messageDataWithIdNoCRC);
             byte[] messageDataWithIdAndCRC = new byte[messageDataWithIdNoCRC.Length + 2];
@@ -126,6 +117,15 @@ namespace GDL90.Core {
             // Console.WriteLine("messageDataWithIdAndCRC: 0x{0}", Convert.ToHexString(messageDataWithIdAndCRC));
             // Console.WriteLine("");
             return messageDataWithIdAndCRC;
+        }
+
+        public static byte[] AppendFlagBytes(byte[] messageWithCRC)
+        {
+            byte[] messageWithFlagBytes = new byte[messageWithCRC.Length + 2];
+            Array.Copy(messageWithCRC, 0, messageWithFlagBytes, 1, messageWithCRC.Length);
+            messageWithFlagBytes[0] = ByteConstants.FlagByte;
+            messageWithFlagBytes[messageWithFlagBytes.Length-1] = ByteConstants.FlagByte;
+            return messageWithFlagBytes;
         }
         
         public static class ByteConstants

@@ -25,7 +25,7 @@ public class MessageStreamParserTests
             0x04,
             0x05
         };
-        byte[] validFrame = FrameWithFlags(validPayload);
+        byte[] validFrame = Message.AppendFlagBytes(Message.AppendCRC(validPayload));
 
         byte[] streamBytes = new byte[oversizedFrame.Length + validFrame.Length];
         Buffer.BlockCopy(oversizedFrame, 0, streamBytes, 0, oversizedFrame.Length);
@@ -60,15 +60,5 @@ public class MessageStreamParserTests
         }
 
         return frame;
-    }
-
-    private static byte[] FrameWithFlags(byte[] messageDataWithIdNoCRC)
-    {
-        byte[] withCRC = Message.AppendCRC(messageDataWithIdNoCRC);
-        byte[] framed = new byte[withCRC.Length + 2];
-        framed[0] = Message.ByteConstants.FlagByte;
-        Buffer.BlockCopy(withCRC, 0, framed, 1, withCRC.Length);
-        framed[framed.Length - 1] = Message.ByteConstants.FlagByte;
-        return framed;
     }
 }
