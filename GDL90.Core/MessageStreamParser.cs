@@ -10,7 +10,7 @@ namespace GDL90.Core {
         public readonly Channel<Message> MessageOutputChannel;
 
         private bool messageInProgress = false;
-        private readonly byte[] messageBuffer = new byte[4096];
+        private readonly byte[] messageBuffer = new byte[1024]; // The apparent largest message (Uplink) from the spec is 436 bytes.
         private int messageBufferIndex = 0;
 
         public MessageStreamParser()
@@ -57,8 +57,17 @@ namespace GDL90.Core {
                         }
                     }
                     if (messageInProgress) {
-                        messageBuffer[messageBufferIndex] = streamBuffer[i];
-                        messageBufferIndex += 1;
+                        // TODO: Test this overflow condition.
+                        if (messageBufferIndex >= messageBuffer.Length) {
+                            // Console.WriteLine("Message buffer overflow detected, discarding and re-framing...");
+                            // streamCorruptionDetectedCallback?.Invoke(new StreamCorruptionDetectedAsyncResult());
+                            messageInProgress = false;
+                            messageBufferIndex = 0;
+                        }
+                        else
+                        {
+                            messageBuffer[messageBufferIndex++] = streamBuffer[i];
+                        }
                     }
                 }
             }
