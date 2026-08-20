@@ -8,6 +8,7 @@ namespace GDL90.Adapters
 {
     public class UDPListener
     {
+        //private readonly GDL90.Core.MessageStreamParser messageParser;
         private readonly AsyncCallback ReceiveUDPDataCallbackDelegate;
         //public readonly MemoryStream NetworkMessageStream = new MemoryStream();
         public struct UdpState
@@ -32,8 +33,6 @@ namespace GDL90.Adapters
             // push these bytes into the GDL90 lib message stream parser instance.
             byte[] receiveBytes = asyncState.udpClient.EndReceive(ar, ref asyncState.ipEndpoint);
             
-            
-
             // if (NetworkMessageStream.CanWrite)
             // {
             //     NetworkMessageStream.Write(receiveBytes, 0, receiveBytes.Length);    

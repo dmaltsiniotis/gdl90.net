@@ -21,4 +21,10 @@
     <ProjectReference Include="..\GDL90.Core\GDL90.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="data\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
