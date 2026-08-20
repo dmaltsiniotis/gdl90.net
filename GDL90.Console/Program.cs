@@ -5,6 +5,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Threading.Tasks;
 
 using GDL90.Core;
 using GDL90.Adapters;
@@ -14,7 +15,8 @@ namespace GDL90.Console {
         public enum ProgramMode {
             ListenUDP,
             ReadFromFile,
-            ExecuteTests
+            ExecuteTests,
+            Experimental
         }
 
         public ProgramMode Mode = ProgramMode.ListenUDP;
@@ -38,90 +40,89 @@ namespace GDL90.Console {
         private readonly int flushThreshold = 1024;
         private int receivedBytesBeforeFlush = 0;
         private readonly FileStream? binaryStratuxDataFile = null;
-        private readonly AsyncCallback GDL90MessageReceivedCallbackDelegate;
-        private readonly AsyncCallback StreamCorruptionCallbackDelegate;
         private int MessageCount = 0;
         private int MessageCountBadCRC = 0;
-        private int StreamCorruptionCount = 0;
-        
-        private readonly UDPListener UdpListener = new UDPListener();
-        private readonly MessageStreamParser MessageStreamParser;
 
         public Processor(ProgramOptions options, Logging.Logger logger) {
             this.options = options;
             this.logger = logger;
-
+            
             logger.Info("GDL90 Decoder v0.2.0");
+            logger.Info("Log level: " + options.LogLevel.ToString());
+            logger.Debug("Program starting in mode: " + options.Mode.ToString());
 
             if (!String.IsNullOrEmpty(options.OutFile)) {
                  binaryStratuxDataFile = new FileStream(options.OutFile, FileMode.OpenOrCreate | FileMode.Append, FileAccess.Write);
             }
-            GDL90MessageReceivedCallbackDelegate = new AsyncCallback(ProcessMessage);
-            StreamCorruptionCallbackDelegate = new AsyncCallback(ProcessStreamCorruption);
-
-            MessageStreamParser = new MessageStreamParser(GDL90MessageReceivedCallbackDelegate, StreamCorruptionCallbackDelegate);
-            //MessageStreamParser.StartAsync(UdpListener.NetworkMessageStream);
         }
 
-        private void ProcessStreamCorruption(IAsyncResult ar) {
-            logger.Warn(String.Format("{0} {1:0000000} Stream corruption detected. Discarding and re-framing.", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount));
-            StreamCorruptionCount++;
-        }
-
-        private void ProcessMessage(IAsyncResult ar) {
-            if (ar.AsyncState == null)
-            {
-                throw new ArgumentException("Missing Message. Expected a Message object.");
-            }
-
-            // Congrats, we have a GDL90 message! Now what do we want to do with it?
-            Message newGDL90Message = (Message)ar.AsyncState;
-
-            MessageCount++;
-
-            if (newGDL90Message.ValidCRC) {
-                logger.Debug(String.Format("{0} {1:0000000} {2}", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount, newGDL90Message.ToShortString()));
-
-                // If we're logging to file, dump the message bytes back out.
-                if (!String.IsNullOrEmpty(options.OutFile) && binaryStratuxDataFile != null && binaryStratuxDataFile.CanWrite) {
-                    receivedBytesBeforeFlush += newGDL90Message.MessageFrame.Length;
-                    binaryStratuxDataFile.Write(newGDL90Message.MessageFrame);
-                    if (receivedBytesBeforeFlush >= flushThreshold) {
-                        logger.Info("Flushing save file contents...");
-                        binaryStratuxDataFile.Flush(true);
-                        receivedBytesBeforeFlush = 0;
-                    }
-                }
-            }
-            else
-            {
-                logger.Warn(String.Format("{0} {1:0000000} CRC failure. Computed: 0x{2:X}, actual: 0x{3:X}.", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount, newGDL90Message.ComputedCRC, newGDL90Message.MessageCRC));
-                MessageCountBadCRC++;
-            }
-        }
-
-        private void ReadFromFileStream(Stream dataStream)
+        private async Task ReceiveMessages(System.Threading.Channels.ChannelReader<Message> messageOutputChannelReader)
         {
-            MessageStreamParser.StartAsync(dataStream);
-            while(dataStream.Position < dataStream.Length)
+            await foreach (var newGDL90Message in messageOutputChannelReader.ReadAllAsync())
             {
-                System.Threading.Thread.Sleep(100);
+                MessageCount++;
+
+                    if (newGDL90Message.ValidCRC) {
+                        logger.Debug(String.Format("{0} {1:0000000} {2:X} {3}", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount, newGDL90Message.MessageId, newGDL90Message.ToShortString()));
+
+                        // If we're logging to file, dump the message bytes back out.
+                        if (!String.IsNullOrEmpty(options.OutFile) && binaryStratuxDataFile != null && binaryStratuxDataFile.CanWrite) {
+                            receivedBytesBeforeFlush += newGDL90Message.MessageFrame.Length;
+                            binaryStratuxDataFile.Write(newGDL90Message.MessageFrame);
+                            if (receivedBytesBeforeFlush >= flushThreshold) {
+                                logger.Info("Flushing save file contents...");
+                                binaryStratuxDataFile.Flush(true);
+                                receivedBytesBeforeFlush = 0;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        logger.Warn(String.Format("{0} {1:0000000} {2:X} CRC failure. Computed: 0x{3:X}, actual: 0x{4:X}.", DateTimeOffset.Now.ToUnixTimeMilliseconds(), MessageCount, newGDL90Message.MessageId, newGDL90Message.ComputedCRC, newGDL90Message.MessageCRC));
+                        MessageCountBadCRC++;
+                    }
             }
+            logger.Info("Done receiving messages from messageOutputChannelReader.");
+        }
+
+        private async Task ReadFromFileStream()
+        {
+            MessageStreamParser messageStreamParser = new MessageStreamParser();
+            _ = Task.Run(async () => await FileLoader.WriteFileToChannel(options.InFile, messageStreamParser.MessageDataChannel.Writer));
+            _ = Task.Run(async () => await messageStreamParser.ProcessMessageDataChannelAsync());
+            await ReceiveMessages(messageStreamParser.MessageOutputChannel.Reader);
             logger.Info("Done reading from file.");
         }
 
-        public void Start() {
+        private async Task ReadFromUDPStream()
+        {
+            MessageStreamParser messageStreamParser = new MessageStreamParser();
+            UDPListener udpListener = new UDPListener(messageStreamParser.MessageDataChannel.Writer);
+            _ = Task.Run(async () => await udpListener.StartListening(options.UdpListenPort));
+            _ = Task.Run(async () => await messageStreamParser.ProcessMessageDataChannelAsync());
+            await ReceiveMessages(messageStreamParser.MessageOutputChannel.Reader);
+            logger.Info("Done reading from UDP stream.");
+        }
+
+        public async Task Start() {
             logger.Info("Starting");
             Stopwatch stopwatch = new();
             stopwatch.Start();
             switch (options.Mode)
             {
                 case ProgramOptions.ProgramMode.ListenUDP:
-                    UdpListener.StartListening(options.UdpListenPort);
+                    await ReadFromUDPStream();
                     break;
                 case ProgramOptions.ProgramMode.ReadFromFile:
-                    ReadFromFileStream(File.OpenRead(options.InFile));
+                    await ReadFromFileStream();
                     break;
+                case ProgramOptions.ProgramMode.Experimental:
+                    await ExecuteExperimentalMode();
+                    break;
+                case ProgramOptions.ProgramMode.ExecuteTests:
+                default:
+                    throw new NotImplementedException($"Program Mode {options.Mode} not implemented yet.");
+                
             }
             if (options.Benchmark == false)
             {
@@ -136,9 +137,13 @@ namespace GDL90.Console {
                 logger.Info("Stats:");
                 logger.Info(String.Format("Processed {0:N0} messages in {1:N0} milliseconds, a rate of {2:N2} messages per second.", MessageCount, stopwatch.ElapsedMilliseconds, ((double)MessageCount / (double)stopwatch.ElapsedMilliseconds * 1000.0).ToString("00.00")));
                 logger.Info(String.Format("Valid CRC: {0:N0}. Failed CRC: {1:N0} ({2:P})", MessageCount - MessageCountBadCRC, MessageCountBadCRC, (double)MessageCountBadCRC / (double)MessageCount));
-                logger.Info(String.Format("Stream corruptions detected: {0:N0}.", StreamCorruptionCount));
             }
             System.Environment.Exit(0);
+        }
+
+        private async Task ExecuteExperimentalMode()
+        {
+            throw new NotImplementedException("There are no experimental methods implemented yet.");
         }
     }
 
@@ -172,6 +177,9 @@ namespace GDL90.Console {
                     case "--benchmark":
                         options.Benchmark = true;
                         break;
+                    case "--experimental":
+                        options.Mode = ProgramOptions.ProgramMode.Experimental;
+                        break;
                     case "--help":
                     default:
                         logger.Info(GetUsage());
@@ -183,6 +191,13 @@ namespace GDL90.Console {
             if (!string.IsNullOrEmpty(options.OutFile) && !string.IsNullOrEmpty(options.InFile) && options.Force == false)
             {
                 logger.Warn("--outfile and --infile used together don't make sense. Use --force to proceed anyway.");
+                logger.Info(GetUsage());
+                Environment.Exit(1);
+            }
+
+            if (options.Mode == ProgramOptions.ProgramMode.Experimental && string.IsNullOrEmpty(options.InFile))
+            {
+                logger.Warn("--experimental mode requires --infile to be specified.");
                 logger.Info(GetUsage());
                 Environment.Exit(1);
             }
@@ -214,10 +229,11 @@ namespace GDL90.Console {
             return usageString.ToString();
         }
 
-        public static int Main(params string[] args) {
+        public static async Task<int> Main(params string[] args) {
             Logging.Logger logger = new Logging.Logger(Logging.Verbosity.Info); // Create a logger with default log level (Info) until we parse the args and know what the user wants.
             ProgramOptions Options = ParseArgs(args, logger);
-            new Processor(Options, logger).Start();
+            logger.LogLevel = Options.LogLevel;
+            await new Processor(Options, logger).Start();
             return 0;
         }
     }

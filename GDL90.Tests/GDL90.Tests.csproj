@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GDL90.Core\GDL90.Core.csproj" />
+    <ProjectReference Include="..\GDL90.Adapters\GDL90.Adapters.csproj" />
   </ItemGroup>
 
   <ItemGroup>
