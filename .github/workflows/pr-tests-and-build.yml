@@ -24,4 +24,4 @@ jobs:
         run: dotnet build gdl90.sln --configuration Debug --no-restore
 
       - name: Run tests
-        run: dotnet test gdl90_tests/gdl90_tests.csproj --configuration Debug --no-build --logger "trx;LogFileName=test-results.trx"
+        run: dotnet test GDL90.Tests/GDL90.Tests.csproj --configuration Debug --no-build --logger "trx;LogFileName=test-results.trx"
